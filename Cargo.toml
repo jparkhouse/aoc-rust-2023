@@ -1,0 +1,13 @@
+[package]
+name = "aoc-rust-2023"
+version = "0.1.0"
+edition = "2021"
+
+[[test]]
+name = "day_1_tests"
+path = "src/day_1/mod.rs"
+harness = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
