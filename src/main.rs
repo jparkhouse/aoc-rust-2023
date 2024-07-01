@@ -2,6 +2,7 @@ use std::io;
 use std::error::Error;
 
 mod day_1;
+mod day_2;
 fn main() -> Result<(), Box<dyn Error>>{
     println!("Enter day number: ");
 
@@ -24,6 +25,10 @@ fn run_day_solution(day: usize) {
 
     match day {
         1 => match day_1::solve() {
+            Ok(result) => println!("Day {} solution:\nPart 1: {}\nPart 2: {}", day, result.0, result.1),
+            Err(err) => eprintln!("Error in day {} solution: {}", day, err)
+        },
+        2 => match day_2::solve() {
             Ok(result) => println!("Day {} solution:\nPart 1: {}\nPart 2: {}", day, result.0, result.1),
             Err(err) => eprintln!("Error in day {} solution: {}", day, err)
         },
