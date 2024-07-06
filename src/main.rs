@@ -34,6 +34,10 @@ fn run_day_solution(day: usize) {
             Ok(result) => println!("Day {} solution:\nPart 1: {}\nPart 2: {}", day, result.0, result.1),
             Err(err) => eprintln!("Error in day {} solution: {}", day, err)
         },
+        3 => match day_3::solve() {
+            Ok(result) => println!("Day {} solution:\nPart 1: {}\nPart 2: {}", day, result.0, result.1),
+            Err(err) => eprintln!("Error in day {} solution: {}", day, err)
+        },
         _ => println!("Solution for day {} not implemented yet", day)
     }
 }

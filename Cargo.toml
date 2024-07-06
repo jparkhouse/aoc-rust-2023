@@ -12,4 +12,3 @@ harness = false
 
 [dependencies]
 regex = "1.5"
-bitvec = "1"
