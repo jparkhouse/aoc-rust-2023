@@ -19,7 +19,7 @@ fn solve_part_1(input: &str) -> Result<usize, String> {
     let mut grid = ThreeRowGrid::new(None, None, None);
 
     for line in input.lines() {
-        grid.insert_next_row(line);
+        grid.insert_next_row(line)?;
         output += match get_machine_part_numbers(&grid) {
             Ok(result) => match result {
                 Some(vec) => vec.into_iter().sum(),
@@ -28,6 +28,18 @@ fn solve_part_1(input: &str) -> Result<usize, String> {
             Err(err) => return Err(format!("Error in get_machine_part_numbers: {err}")),
         }
     }
+
+    match grid.handle_last_row() {
+        Ok(_) => {},
+        Err(err) => return Err(format!("Error in ThreeGridRow.handle_last_row: {err}")),
+    };
+    output += match get_machine_part_numbers(&grid) {
+        Ok(result) => match result {
+            Some(vec) => vec.into_iter().sum(),
+            None => 0,
+        },
+        Err(err) => return Err(format!("Error in get_machine_part_numbers: {err}")),
+    };
 
     return Ok(output);
 }
@@ -52,9 +64,11 @@ struct ThreeRowGrid {
     bottom_row: Option<Vec<char>>,
 }
 
+#[derive(Debug, PartialEq)]
 enum ThreeRowGridCase {
-    TopRowOnly,
+    MiddleRowOnly,
     TopAndMiddleRowOnly,
+    MiddleAndBottomRowOnly,
     AllRows,
     Empty,
     Invalid,
@@ -82,16 +96,16 @@ impl ThreeRowGrid {
         match collector.len() {
             1 => {
                 return ThreeRowGrid {
-                    top_row: Some(get_chars(collector[0])),
-                    middle_row: None,
+                    top_row: None,
+                    middle_row: Some(get_chars(collector[0])),
                     bottom_row: None,
                 }
             }
             2 => {
                 return ThreeRowGrid {
-                    top_row: Some(get_chars(collector[0])),
-                    middle_row: Some(get_chars(collector[1])),
-                    bottom_row: None,
+                    top_row: None,
+                    middle_row: Some(get_chars(collector[0])),
+                    bottom_row: Some(get_chars(collector[1])),
                 }
             }
             3 => {
@@ -114,22 +128,23 @@ impl ThreeRowGrid {
 
     fn get_case(&self) -> ThreeRowGridCase {
         let top_row: bool = match &self.top_row {
-            Some(row) => true,
+            Some(_row) => true,
             None => false,
         };
         let middle_row: bool = match &self.middle_row {
-            Some(row) => true,
+            Some(_row) => true,
             None => false,
         };
         let bottom_row: bool = match &self.bottom_row {
-            Some(row) => true,
+            Some(_row) => true,
             None => false,
         };
 
         match (top_row, middle_row, bottom_row) {
             (true, true, true) => return ThreeRowGridCase::AllRows,
             (true, true, false) => return ThreeRowGridCase::TopAndMiddleRowOnly,
-            (true, false, false) => return ThreeRowGridCase::TopRowOnly,
+            (false, true, true) => return ThreeRowGridCase::MiddleAndBottomRowOnly,
+            (false, true, false) => return ThreeRowGridCase::MiddleRowOnly,
             (false, false, false) => return ThreeRowGridCase::Empty,
             _ => return ThreeRowGridCase::Invalid,
         }
@@ -138,106 +153,80 @@ impl ThreeRowGrid {
     fn insert_next_row(&mut self, row: &str) -> Result<(), String> {
         match self.get_case() {
             ThreeRowGridCase::Empty => {
-                self.top_row = Some(get_chars(row));
-                return Ok(());
-            }
-            ThreeRowGridCase::TopRowOnly => {
                 self.middle_row = Some(get_chars(row));
                 return Ok(());
             }
-            ThreeRowGridCase::TopAndMiddleRowOnly => {
+            ThreeRowGridCase::MiddleRowOnly => {
                 self.bottom_row = Some(get_chars(row));
                 return Ok(());
             }
-            ThreeRowGridCase::AllRows => {
+            ThreeRowGridCase::AllRows | ThreeRowGridCase::MiddleAndBottomRowOnly => {
                 self.top_row = self.middle_row.take(); // yoink
                 self.middle_row = self.bottom_row.take();
                 self.bottom_row = Some(get_chars(row));
                 return Ok(());
+            }
+            ThreeRowGridCase::TopAndMiddleRowOnly => {
+                return Err(String::from("Row inserted into end case"))
             }
             ThreeRowGridCase::Invalid => {
                 return Err(String::from("Unable to add row to an invalid ThreeRowGrid"))
             }
         }
     }
+
+    fn handle_last_row(&mut self) -> Result<(), String> {
+        match self.get_case() {
+            ThreeRowGridCase::AllRows | ThreeRowGridCase::MiddleAndBottomRowOnly => {
+                self.top_row = self.middle_row.take(); // yoink
+                self.middle_row = self.bottom_row.take();
+                self.bottom_row = None;
+                return Ok(());
+            }
+            _ => return Err(String::from("Invalid end case"))
+        }
+    }
 }
 
 fn get_machine_part_numbers(grid: &ThreeRowGrid) -> Result<Option<Vec<usize>>, String> {
     match grid.get_case() {
-        ThreeRowGridCase::Empty => return Ok(None),
-        ThreeRowGridCase::Invalid => {
-            return Err(String::from("Unable to parse Invalid ThreeRowGrid"))
-        }
-        ThreeRowGridCase::TopRowOnly => {
-            return match get_machine_part_numbers_from_top_row(grid.top_row.as_ref().unwrap()) {
-                Ok(result) => Ok(result),
-                Err(err) => Err(err),
+        ThreeRowGridCase::Empty => Ok(None),
+        ThreeRowGridCase::Invalid => Err(String::from("Unable to parse Invalid ThreeRowGrid")),
+        ThreeRowGridCase::MiddleRowOnly => Ok(None),
+        ThreeRowGridCase::MiddleAndBottomRowOnly => {
+            if let (Some(middle_row), Some(bottom_row)) = (&grid.middle_row, &grid.bottom_row) {
+                get_machine_part_numbers_from_middle_and_bottom_row(
+                    middle_row.as_ref(),
+                    bottom_row.as_ref(),
+                )
+            } else {
+                Err(String::from("Middle or Bottom row is missing"))
             }
         }
         ThreeRowGridCase::TopAndMiddleRowOnly => {
-            return match get_machine_part_numbers_from_top_and_middle_row(
-                grid.top_row.as_ref().unwrap(),
-                grid.middle_row.as_ref().unwrap(),
-            ) {
-                Ok(result) => Ok(result),
-                Err(err) => Err(err),
+            if let (Some(top_row), Some(middle_row)) = (&grid.top_row, &grid.middle_row) {
+                get_machine_part_numbers_from_top_and_middle_row(
+                    top_row.as_ref(),
+                    middle_row.as_ref(),
+                )
+            } else {
+                Err(String::from("Top or middle row is missing"))
             }
         }
         ThreeRowGridCase::AllRows => {
-            return match get_machine_part_numbers_from_all_rows(
-                grid.top_row.as_ref().unwrap(),
-                grid.middle_row.as_ref().unwrap(),
-                grid.bottom_row.as_ref().unwrap(),
-            ) {
-                Ok(result) => Ok(result),
-                Err(err) => Err(err),
+            if let (Some(top_row), Some(middle_row), Some(bottom_row)) =
+                (&grid.top_row, &grid.middle_row, &grid.bottom_row)
+            {
+                get_machine_part_numbers_from_all_rows(
+                    top_row.as_ref(),
+                    middle_row.as_ref(),
+                    bottom_row.as_ref(),
+                )
+            } else {
+                Err(String::from("Top, middle, or bottom row is missing"))
             }
         }
-    };
-}
-
-fn get_machine_part_numbers_from_top_row(
-    top_row: &Vec<char>,
-) -> Result<Option<Vec<usize>>, String> {
-    let (symbol_bitmask, num_bitmask) = match get_bitmasks(top_row) {
-        Ok(result) => result,
-        Err(err) => return Err(format!("Error from bitmasks: {err}")),
-    };
-
-    let numbers = match get_all_numbers(top_row, num_bitmask) {
-        Ok(result) => match result {
-            Some(nums) => nums,
-            None => return Ok(None),
-        },
-        Err(err) => return Err(format!("Error in get_all_numbers: {err}")),
-    };
-
-    let output: Vec<usize> = numbers
-        .into_iter()
-        .filter(|num| {
-            let pre = match symbol_bitmask.get(num.start - 1) {
-                Some(val) => match val {
-                    true => true,
-                    false => false,
-                },
-                None => false,
-            };
-            let post = match symbol_bitmask.get(num.stop) {
-                Some(val) => match val {
-                    true => true,
-                    false => false,
-                },
-                None => false,
-            };
-            return pre || post;
-        })
-        .map(|num| num.value)
-        .collect::<Vec<_>>();
-
-    match output.len() {
-        0 => return Ok(None),
-        _ => return Ok(Some(output)),
-    };
+    }
 }
 
 fn get_machine_part_numbers_from_top_and_middle_row(
@@ -254,7 +243,7 @@ fn get_machine_part_numbers_from_top_and_middle_row(
         Err(err) => return Err(format!("Error from bitmasks: {err}")),
     };
 
-    let numbers = match get_all_numbers(top_row, m_num_bitmask) {
+    let numbers = match get_all_numbers(middle_row, m_num_bitmask) {
         Ok(result) => match result {
             Some(nums) => nums,
             None => return Ok(None),
@@ -264,39 +253,150 @@ fn get_machine_part_numbers_from_top_and_middle_row(
 
     let output: Vec<usize> = numbers
         .into_iter()
-        .filter(|num| {
-            let pre = match m_symbol_bitmask.get(num.start - 1) {
-                Some(val) => match val {
-                    true => true,
-                    false => false,
-                },
-                None => false,
-            };
-            let post = match m_symbol_bitmask.get(num.stop) {
-                Some(val) => match val {
-                    true => true,
-                    false => false,
-                },
-                None => false,
-            };
-            let above = t_symbol_bitmask[num.start..num.stop]
-                .iter()
-                .any(|val| val == &true);
-            let upper_left = match t_symbol_bitmask.get(num.start - 1) {
-                Some(val) => match val {
-                    true => true,
-                    false => false,
-                },
-                None => false,
-            };
-            let upper_right = match t_symbol_bitmask.get(num.stop) {
-                Some(val) => match val {
-                    true => true,
-                    false => false,
-                },
-                None => false,
-            };
-            return pre || post || upper_left || above || upper_right;
+        .filter(|num| match num.start {
+            0 => {
+                let post = match m_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let above = t_symbol_bitmask[num.start..num.stop]
+                    .iter()
+                    .any(|val| val == &true);
+                let upper_right = match t_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                return post || above || upper_right;
+            }
+            _ => {
+                let pre = match m_symbol_bitmask.get(num.start - 1) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let post = match m_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let above = t_symbol_bitmask[num.start..num.stop]
+                    .iter()
+                    .any(|val| val == &true);
+                let upper_left = match t_symbol_bitmask.get(num.start - 1) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let upper_right = match t_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                return pre || post || upper_left || above || upper_right;
+            }
+        })
+        .map(|num| num.value)
+        .collect::<Vec<_>>();
+
+    match output.len() {
+        0 => return Ok(None),
+        _ => return Ok(Some(output)),
+    };
+}
+
+fn get_machine_part_numbers_from_middle_and_bottom_row(
+    middle_row: &Vec<char>,
+    bottom_row: &Vec<char>,
+) -> Result<Option<Vec<usize>>, String> {
+    let (m_symbol_bitmask, m_num_bitmask) = match get_bitmasks(middle_row) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error from bitmasks: {err}")),
+    };
+
+    let b_symbol_bitmask = match get_bitmasks(bottom_row) {
+        Ok(result) => result.0,
+        Err(err) => return Err(format!("Error from bitmasks: {err}")),
+    };
+
+    let numbers = match get_all_numbers(middle_row, m_num_bitmask) {
+        Ok(result) => match result {
+            Some(nums) => nums,
+            None => return Ok(None),
+        },
+        Err(err) => return Err(format!("Error in get_all_numbers: {err}")),
+    };
+
+    let output: Vec<usize> = numbers
+        .into_iter()
+        .filter(|num| match num.start {
+            0 => {
+                let post = match m_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let below = b_symbol_bitmask[num.start..num.stop]
+                    .iter()
+                    .any(|val| val == &true);
+                let lower_right = match b_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                return post || below || lower_right;
+            }
+            _ => {
+                let pre = match m_symbol_bitmask.get(num.start - 1) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let post = match m_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let below = b_symbol_bitmask[num.start..num.stop]
+                    .iter()
+                    .any(|val| val == &true);
+                let lower_left = match b_symbol_bitmask.get(num.start - 1) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let lower_right = match b_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                return pre || post || lower_left || below || lower_right;
+            }
         })
         .map(|num| num.value)
         .collect::<Vec<_>>();
@@ -327,7 +427,7 @@ fn get_machine_part_numbers_from_all_rows(
         Err(err) => return Err(format!("Error from bitmasks: {err}")),
     };
 
-    let numbers = match get_all_numbers(top_row, m_num_bitmask) {
+    let numbers = match get_all_numbers(middle_row, m_num_bitmask) {
         Ok(result) => match result {
             Some(nums) => nums,
             None => return Ok(None),
@@ -337,63 +437,95 @@ fn get_machine_part_numbers_from_all_rows(
 
     let output: Vec<usize> = numbers
         .into_iter()
-        .filter(|num| {
-            let pre = match m_symbol_bitmask.get(num.start - 1) {
-                Some(val) => match val {
-                    true => true,
-                    false => false,
-                },
-                None => false,
-            };
-            let post = match m_symbol_bitmask.get(num.stop) {
-                Some(val) => match val {
-                    true => true,
-                    false => false,
-                },
-                None => false,
-            };
-            let above = t_symbol_bitmask[num.start..num.stop]
-                .iter()
-                .any(|val| val == &true);
-            let upper_left = match t_symbol_bitmask.get(num.start - 1) {
-                Some(val) => match val {
-                    true => true,
-                    false => false,
-                },
-                None => false,
-            };
-            let upper_right = match t_symbol_bitmask.get(num.stop) {
-                Some(val) => match val {
-                    true => true,
-                    false => false,
-                },
-                None => false,
-            };
-            let below = b_symbol_bitmask[num.start..num.stop]
-                .iter()
-                .any(|val| val == &true);
-            let lower_left = match b_symbol_bitmask.get(num.start - 1) {
-                Some(val) => match val {
-                    true => true,
-                    false => false,
-                },
-                None => false,
-            };
-            let lower_right = match b_symbol_bitmask.get(num.stop) {
-                Some(val) => match val {
-                    true => true,
-                    false => false,
-                },
-                None => false,
-            };
-            return pre
-                || post
-                || upper_left
-                || above
-                || upper_right
-                || lower_left
-                || below
-                || lower_right;
+        .filter(|num| match num.start {
+            0 => {
+                let post = match m_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let above = t_symbol_bitmask[num.start..num.stop]
+                    .iter()
+                    .any(|val| val == &true);
+                let upper_right = match t_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let below = b_symbol_bitmask[num.start..num.stop]
+                    .iter()
+                    .any(|val| val == &true);
+                let lower_right = match b_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                return post || above || upper_right || below || lower_right;
+            }
+            _ => {
+                let pre = match m_symbol_bitmask.get(num.start - 1) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let post = match m_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let above = t_symbol_bitmask[num.start..num.stop]
+                    .iter()
+                    .any(|val| val == &true);
+                let upper_left = match t_symbol_bitmask.get(num.start - 1) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let upper_right = match t_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let below = b_symbol_bitmask[num.start..num.stop]
+                    .iter()
+                    .any(|val| val == &true);
+                let lower_left = match b_symbol_bitmask.get(num.start - 1) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                let lower_right = match b_symbol_bitmask.get(num.stop) {
+                    Some(val) => match val {
+                        true => true,
+                        false => false,
+                    },
+                    None => false,
+                };
+                return pre
+                    || post
+                    || upper_left
+                    || above
+                    || upper_right
+                    || lower_left
+                    || below
+                    || lower_right;
+            }
         })
         .map(|num| num.value)
         .collect::<Vec<_>>();
@@ -488,7 +620,10 @@ fn get_all_numbers(row: &Vec<char>, bitmask: Vec<bool>) -> Result<Option<Vec<Num
                             .rev()
                             .enumerate()
                             .map(|(index, value)| {
-                                get_int_part_1(value).unwrap() * 10u32.pow(index as u32) as usize
+                                return match get_int_part_1(value) {
+                                    Some(result) => result * 10u32.pow(index as u32) as usize,
+                                    None => 0,
+                                };
                             })
                             .sum(),
                     });
@@ -510,8 +645,251 @@ fn get_all_numbers(row: &Vec<char>, bitmask: Vec<bool>) -> Result<Option<Vec<Num
 mod tests {
     use super::*;
 
+    mod test_examples {
+        use crate::day_3::solve_part_1;
+
+        #[test]
+        fn test_example_1() {
+            use std::fs;
+
+            let input = match fs::read_to_string("src/day_3/test_input_part_1.txt") {
+                Ok(result) => result,
+                Err(err) => panic!("Error in file reading: {err}"),
+            };
+
+            let result = match solve_part_1(&input) {
+                Ok(result) => result,
+                Err(err) => panic!("Error in solve_part_1: {err}"),
+            };
+
+            assert_eq!(result, 4361);
+        }
+    }
+
+    mod test_three_row_grid {
+
+        #[test]
+        fn initialises_empty() {
+            use super::{ThreeRowGrid, ThreeRowGridCase};
+
+            let result = ThreeRowGrid::new(None, None, None);
+
+            assert_eq!(result.get_case(), ThreeRowGridCase::Empty)
+        }
+
+        #[test]
+        fn initialises_middle_only() {
+            use super::{ThreeRowGrid, ThreeRowGridCase};
+
+            let result = ThreeRowGrid::new(Some("467..114.."), None, None);
+            assert_eq!(result.get_case(), ThreeRowGridCase::MiddleRowOnly);
+
+            let result = ThreeRowGrid::new(None, Some("467..114.."), None);
+            assert_eq!(result.get_case(), ThreeRowGridCase::MiddleRowOnly);
+
+            let result = ThreeRowGrid::new(None, None, Some("467..114.."));
+            assert_eq!(result.get_case(), ThreeRowGridCase::MiddleRowOnly);
+        }
+
+        #[test]
+        fn initialises_top_and_middle_only() {
+            use super::{ThreeRowGrid, ThreeRowGridCase};
+
+            let result = ThreeRowGrid::new(Some("467..114.."), Some("...*......"), None);
+            assert_eq!(result.get_case(), ThreeRowGridCase::MiddleAndBottomRowOnly);
+
+            let result = ThreeRowGrid::new(Some("467..114.."), None, Some("...*......"));
+            assert_eq!(result.get_case(), ThreeRowGridCase::MiddleAndBottomRowOnly);
+
+            let result = ThreeRowGrid::new(None, Some("467..114.."), Some("...*......"));
+            assert_eq!(result.get_case(), ThreeRowGridCase::MiddleAndBottomRowOnly);
+        }
+
+        #[test]
+        fn initialises_all_rows() {
+            use super::{ThreeRowGrid, ThreeRowGridCase};
+
+            let result =
+                ThreeRowGrid::new(Some("467..114.."), Some("...*......"), Some("..35..633."));
+
+            assert_eq!(result.get_case(), ThreeRowGridCase::AllRows)
+        }
+
+        #[test]
+        fn insert_next_row_when_empty() {
+            use super::{get_chars, ThreeRowGrid, ThreeRowGridCase};
+
+            let row_1 = "467..114..";
+
+            let row_1_chars = get_chars(&row_1);
+
+            let mut grid = ThreeRowGrid {
+                top_row: None,
+                middle_row: None,
+                bottom_row: None,
+            };
+
+            match grid.insert_next_row(row_1) {
+                Ok(_) => {}
+                Err(err) => panic!("Error in insert_next_row: {err}"),
+            }
+
+            assert!(&grid.top_row.is_none());
+            assert!(&grid.middle_row.is_some());
+            assert!(&grid.bottom_row.is_none());
+            assert_eq!(grid.middle_row.clone().unwrap(), row_1_chars);
+            assert_eq!(grid.get_case(), ThreeRowGridCase::MiddleRowOnly)
+        }
+
+        #[test]
+        fn insert_bottom_row_when_middle_only() {
+            use super::{get_chars, ThreeRowGrid, ThreeRowGridCase};
+
+            let row_1 = "467..114..";
+            let row_1_chars = get_chars(&row_1);
+
+            let row_2 = "...*......";
+            let row_2_chars = get_chars(&row_2);
+
+            let mut grid = ThreeRowGrid {
+                top_row: None,
+                middle_row: Some(row_1_chars.clone()),
+                bottom_row: None,
+            };
+
+            match grid.insert_next_row(row_2) {
+                Ok(_) => {}
+                Err(err) => panic!("Error in insert_next_row: {err}"),
+            }
+
+            assert!(&grid.top_row.is_none());
+            assert!(&grid.middle_row.is_some());
+            assert!(&grid.bottom_row.is_some());
+            assert_eq!(grid.get_case(), ThreeRowGridCase::MiddleAndBottomRowOnly);
+            assert_eq!(grid.middle_row.clone().unwrap(), row_1_chars);
+            assert_eq!(grid.bottom_row.clone().unwrap(), row_2_chars);
+        }
+
+        #[test]
+        fn insert_bottom_row_when_top_and_middle_only() {
+            use super::{get_chars, ThreeRowGrid, ThreeRowGridCase};
+
+            let row_1 = "467..114..";
+            let row_1_chars = get_chars(&row_1);
+
+            let row_2 = "...*......";
+            let row_2_chars = get_chars(&row_2);
+
+            let row_3 = "..35..633.";
+            let row_3_chars = get_chars(&row_3);
+
+            let mut grid = ThreeRowGrid {
+                top_row: None,
+                middle_row: Some(row_1_chars.clone()),
+                bottom_row: Some(row_2_chars.clone()),
+            };
+
+            match grid.insert_next_row(row_3) {
+                Ok(_) => {}
+                Err(err) => panic!("Error in insert_next_row: {err}"),
+            }
+
+            assert!(&grid.top_row.is_some());
+            assert!(&grid.middle_row.is_some());
+            assert!(&grid.bottom_row.is_some());
+            assert_eq!(grid.get_case(), ThreeRowGridCase::AllRows);
+            assert_eq!(grid.top_row.clone().unwrap(), row_1_chars);
+            assert_eq!(grid.middle_row.clone().unwrap(), row_2_chars);
+            assert_eq!(grid.bottom_row.clone().unwrap(), row_3_chars);
+        }
+
+        #[test]
+        fn insert_bottom_row_when_all_rows_filled() {
+            use super::{get_chars, ThreeRowGrid, ThreeRowGridCase};
+
+            let row_1 = "467..114..";
+            let row_1_chars = get_chars(&row_1);
+
+            let row_2 = "...*......";
+            let row_2_chars = get_chars(&row_2);
+
+            let row_3 = "..35..633.";
+            let row_3_chars = get_chars(&row_3);
+
+            let row_4 = "......#...";
+            let row_4_chars = get_chars(&row_4);
+
+            let mut grid = ThreeRowGrid {
+                top_row: Some(row_1_chars.clone()),
+                middle_row: Some(row_2_chars.clone()),
+                bottom_row: Some(row_3_chars.clone()),
+            };
+
+            match grid.insert_next_row(row_4) {
+                Ok(_) => {}
+                Err(err) => panic!("Error in insert_next_row: {err}"),
+            }
+
+            assert!(&grid.top_row.is_some());
+            assert!(&grid.middle_row.is_some());
+            assert!(&grid.bottom_row.is_some());
+            assert_eq!(grid.get_case(), ThreeRowGridCase::AllRows);
+            assert_eq!(grid.top_row.clone().unwrap(), row_2_chars);
+            assert_eq!(grid.middle_row.clone().unwrap(), row_3_chars);
+            assert_eq!(grid.bottom_row.clone().unwrap(), row_4_chars);
+        }
+    }
+
+    mod test_get_machine_numbers {
+
+        #[test]
+        fn test_top_and_middle_row() {
+            use super::{get_chars, get_machine_part_numbers_from_top_and_middle_row};
+
+            let result = match get_machine_part_numbers_from_top_and_middle_row(
+                &get_chars("*....^.71."),
+                &get_chars("76.1...&7."),
+            ) {
+                Ok(result) => result,
+                Err(err) => {
+                    panic!("Error in get_machine_part_numbers_from_top_and_middle_row: {err}")
+                }
+            };
+
+            assert!(result.is_some());
+            assert_eq!(result.unwrap(), vec![76 as usize, 7 as usize])
+        }
+
+        #[test]
+        fn test_all_rows() {
+            use super::{get_chars, get_machine_part_numbers_from_all_rows};
+
+            let result = match get_machine_part_numbers_from_all_rows(&get_chars(".679.....662....71............................805..........862.680...................................................................687...."),
+             &get_chars("............*....-..811..........846..855......*.............*..$........230.92@............................=.....................92........"),
+              &get_chars("..........360..........#....664.....=.*...881...677...934.780.......426.*..........8......654.....*959.....539..........21.........*........")){
+                Ok(result) => result,
+                Err(err) => panic!("Error in get_machine_part_numbers_from_all_rows: {err}"),
+            };
+
+            assert!(result.is_some());
+            assert_eq!(result.unwrap(), Vec::from([811, 846, 855, 230, 92, 92]));
+
+            let result = match get_machine_part_numbers_from_all_rows(&get_chars("............*....-..811..........846..855......*.............*..$........230.92@............................=.....................92........"),
+              &get_chars("..........360..........#....664.....=.*...881...677...934.780.......426.*..........8......654.....*959.....539..........21.........*........"),
+              &get_chars(".....................+.........*......379..*.........*.........=.........969........*........*.976..............872....*....../....579......")){
+                Ok(result) => result,
+                Err(err) => panic!("Error in get_machine_part_numbers_from_all_rows: {err}"),
+            };
+
+            assert!(result.is_some());
+            assert_eq!(
+                result.unwrap(),
+                Vec::from([360, 664, 881, 677, 934, 780, 8, 654, 959, 539, 21])
+            );
+        }
+    }
+
     mod test_get_bitmasks {
-        use core::panic;
 
         #[test]
         fn returns_all_false_with_full_stops() {
