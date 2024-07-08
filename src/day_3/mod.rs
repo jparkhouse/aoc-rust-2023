@@ -33,6 +33,7 @@ fn solve_part_1(input: &str) -> Result<usize, String> {
         Ok(_) => {},
         Err(err) => return Err(format!("Error in ThreeGridRow.handle_last_row: {err}")),
     };
+
     output += match get_machine_part_numbers(&grid) {
         Ok(result) => match result {
             Some(vec) => vec.into_iter().sum(),
@@ -45,7 +46,29 @@ fn solve_part_1(input: &str) -> Result<usize, String> {
 }
 
 fn solve_part_2(input: &str) -> Result<usize, String> {
-    return Ok(0);
+    let mut output: usize = 0;
+    let mut grid = ThreeRowGrid::new(None, None, None);
+
+    for line in input.lines() {
+        grid.insert_next_row(line)?;
+        output += match get_gear_ratios(&grid)? {
+            Some(result) => todo!(),
+            None => 0
+        }
+    }
+
+    grid.handle_last_row()?;
+
+    output += match get_gear_ratios(&grid)? {
+        Some(result) => todo!(),
+        None => 0
+    };
+
+    return Ok(output)
+}
+
+fn get_gear_ratios(grid: &ThreeRowGrid) -> Result<Option<Vec<usize>>, String> {
+    todo!()
 }
 
 fn get_chars(input: &str) -> Vec<char> {
