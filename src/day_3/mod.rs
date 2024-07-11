@@ -8,8 +8,14 @@ pub fn solve() -> Result<(usize, usize), String> {
         Err(err) => return Err(format!("Error in reading file: {}", err)),
     };
 
-    let part_1 = solve_part_1(&input)?;
-    let part_2 = solve_part_2(&input)?;
+    let part_1 = match solve_part_1(&input) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in solve_part_1: {err}")),
+    };
+    let part_2 = match solve_part_2(&input) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in solve_part_2: {err}")),
+    };
 
     return Ok((part_1, part_2));
 }
@@ -19,7 +25,10 @@ fn solve_part_1(input: &str) -> Result<usize, String> {
     let mut grid = ThreeRowGrid::new(None, None, None);
 
     for line in input.lines() {
-        grid.insert_next_row(line)?;
+        match grid.insert_next_row(line) {
+            Ok(_) => {}
+            Err(err) => return Err(format!("Error in ThreeGridRow.insert_new_row: {err}")),
+        }
         output += match get_machine_part_numbers(&grid) {
             Ok(result) => match result {
                 Some(vec) => vec.into_iter().sum(),
@@ -30,7 +39,7 @@ fn solve_part_1(input: &str) -> Result<usize, String> {
     }
 
     match grid.handle_last_row() {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(err) => return Err(format!("Error in ThreeGridRow.handle_last_row: {err}")),
     };
 
@@ -50,25 +59,319 @@ fn solve_part_2(input: &str) -> Result<usize, String> {
     let mut grid = ThreeRowGrid::new(None, None, None);
 
     for line in input.lines() {
-        grid.insert_next_row(line)?;
-        output += match get_gear_ratios(&grid)? {
-            Some(result) => todo!(),
-            None => 0
+        match grid.insert_next_row(line) {
+            Ok(_) => {}
+            Err(err) => return Err(format!("Error in ThreeGridRow.insert_new_row: {err}")),
+        };
+        output += match get_gear_ratios(&grid) {
+            Ok(opt) => match opt {
+                Some(vec) => {
+                    let mut sum: usize = 0;
+                    for item in vec {
+                        println!("{item}");
+                        sum += item;
+                    }
+                    sum
+                },
+                None => 0,
+            },
+            Err(err) => return Err(format!("Error in get_gear_ratios: {err}")),
         }
     }
 
-    grid.handle_last_row()?;
-
-    output += match get_gear_ratios(&grid)? {
-        Some(result) => todo!(),
-        None => 0
+    match grid.handle_last_row() {
+        Ok(_) => {}
+        Err(err) => return Err(format!("Error in ThreeGridRow.handle_last_row: {err}")),
     };
 
-    return Ok(output)
+    output += match get_gear_ratios(&grid) {
+        Ok(result) => match result {
+            Some(vec) => vec.into_iter().sum(),
+            None => 0,
+        },
+        Err(err) => return Err(format!("Error in get_machine_part_numbers: {err}")),
+    };
+
+    return Ok(output);
 }
 
 fn get_gear_ratios(grid: &ThreeRowGrid) -> Result<Option<Vec<usize>>, String> {
-    todo!()
+    match grid.get_case() {
+        ThreeRowGridCase::MiddleRowOnly | ThreeRowGridCase::Empty => return Ok(None),
+        ThreeRowGridCase::MiddleAndBottomRowOnly => {
+            if let (Some(middle_row), Some(bottom_row)) = (&grid.middle_row, &grid.bottom_row) {
+                get_gear_ratios_from_middle_and_bottom_row(middle_row.as_ref(), bottom_row.as_ref())
+            } else {
+                Err(String::from("Middle or Bottom row is missing"))
+            }
+        }
+        ThreeRowGridCase::TopAndMiddleRowOnly => {
+            if let (Some(top_row), Some(middle_row)) = (&grid.top_row, &grid.middle_row) {
+                get_gear_ratios_from_top_and_middle_row(top_row.as_ref(), middle_row.as_ref())
+            } else {
+                Err(String::from("Top or middle row is missing"))
+            }
+        }
+        ThreeRowGridCase::AllRows => {
+            if let (Some(top_row), Some(middle_row), Some(bottom_row)) =
+                (&grid.top_row, &grid.middle_row, &grid.bottom_row)
+            {
+                get_gear_ratios_from_all_rows(
+                    top_row.as_ref(),
+                    middle_row.as_ref(),
+                    bottom_row.as_ref(),
+                )
+            } else {
+                Err(String::from("Top, middle, or bottom row is missing"))
+            }
+        }
+        ThreeRowGridCase::Invalid => return Err(String::from("Cannot parse Invalid grid")),
+    }
+}
+
+fn get_gear_ratios_from_all_rows(
+    top_row: &Vec<char>,
+    middle_row: &Vec<char>,
+    bottom_row: &Vec<char>,
+) -> Result<Option<Vec<usize>>, String> {
+    let gears: Vec<bool> = middle_row
+        .iter()
+        .map(|ch| match ch {
+            '*' => true,
+            _ => false,
+        })
+        .collect();
+
+    let (_, top_number_map) = match get_bitmasks(top_row) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_bitmasks: {err}")),
+    };
+
+    let (_, middle_number_map) = match get_bitmasks(middle_row) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_bitmasks: {err}")),
+    };
+
+    let (_, bottom_number_map) = match get_bitmasks(bottom_row) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_bitmasks: {err}")),
+    };
+
+    let top_numbers = match get_all_numbers(top_row, top_number_map) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_all_numbers: {err}")),
+    };
+
+    let middle_numbers = match get_all_numbers(middle_row, middle_number_map) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_all_numbers: {err}")),
+    };
+
+    let bottom_numbers = match get_all_numbers(bottom_row, bottom_number_map) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_all_numbers: {err}")),
+    };
+
+    match merge_numbers([top_numbers, middle_numbers, bottom_numbers]) {
+        Some(result) => {
+            // if we have numbers
+            let output: Vec<usize> = gears
+                .into_iter()
+                .enumerate()
+                .filter_map(|(index, gear)| {
+                    if gear {
+                        match build_valid_gear(index, &result) {
+                            Some(fing) => {
+                                return Some(
+                                    fing.number_1.unwrap().value * fing.number_2.unwrap().value,
+                                )
+                            }
+                            None => return None,
+                        };
+                    } else {
+                        return None;
+                    }
+                })
+                .collect();
+            match output.len() {
+                0 => return Ok(None),
+                _ => return Ok(Some(output)),
+            };
+        }
+        None => return Ok(None), // if we don't have numbers, then we wont have gear ratios
+    };
+}
+
+fn get_gear_ratios_from_top_and_middle_row(
+    top_row: &Vec<char>,
+    middle_row: &Vec<char>,
+) -> Result<Option<Vec<usize>>, String> {
+    let gears: Vec<bool> = middle_row
+        .iter()
+        .map(|ch| match ch {
+            '*' => true,
+            _ => false,
+        })
+        .collect();
+
+    if !gears.iter().any(|b| *b) {
+        return Ok(None);
+    }
+
+    let (_, top_number_map) = match get_bitmasks(top_row) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_bitmasks: {err}")),
+    };
+
+    let (_, middle_number_map) = match get_bitmasks(middle_row) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_bitmasks: {err}")),
+    };
+
+    let top_numbers = match get_all_numbers(top_row, top_number_map) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_all_numbers: {err}")),
+    };
+
+    let middle_numbers = match get_all_numbers(middle_row, middle_number_map) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_all_numbers: {err}")),
+    };
+
+    match merge_numbers([top_numbers, middle_numbers, None]) {
+        Some(result) => {
+            // if we have numbers
+            let output: Vec<usize> = gears
+                .into_iter()
+                .enumerate()
+                .filter_map(|(index, gear)| {
+                    if gear {
+                        match build_valid_gear(index, &result) {
+                            Some(fing) => {
+                                return Some(
+                                    fing.number_1.unwrap().value * fing.number_2.unwrap().value,
+                                )
+                            }
+                            None => return None,
+                        };
+                    } else {
+                        return None;
+                    }
+                })
+                .collect();
+            match output.len() {
+                0 => return Ok(None),
+                _ => return Ok(Some(output))
+            }
+        }
+        None => return Ok(None), // if we don't have numbers, then we wont have gear ratios
+    };
+}
+
+fn get_gear_ratios_from_middle_and_bottom_row(
+    middle_row: &Vec<char>,
+    bottom_row: &Vec<char>,
+) -> Result<Option<Vec<usize>>, String> {
+    let gears: Vec<bool> = middle_row
+        .iter()
+        .map(|ch| match ch {
+            '*' => true,
+            _ => false,
+        })
+        .collect();
+
+    let (_, middle_number_map) = match get_bitmasks(middle_row) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_bitmasks: {err}")),
+    };
+
+    let (_, bottom_number_map) = match get_bitmasks(bottom_row) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_bitmasks: {err}")),
+    };
+
+    let middle_numbers = match get_all_numbers(middle_row, middle_number_map) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_all_numbers: {err}")),
+    };
+
+    let bottom_numbers = match get_all_numbers(bottom_row, bottom_number_map) {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in get_all_numbers: {err}")),
+    };
+
+    match merge_numbers([None, middle_numbers, bottom_numbers]) {
+        Some(result) => {
+            // if we have numbers
+            let output: Vec<usize> = gears
+                .into_iter()
+                .enumerate()
+                .filter_map(|(index, gear)| {
+                    if gear {
+                        match build_valid_gear(index, &result) {
+                            Some(fing) => {
+                                return Some(
+                                    fing.number_1.unwrap().value * fing.number_2.unwrap().value,
+                                )
+                            }
+                            None => return None,
+                        };
+                    } else {
+                        return None;
+                    }
+                })
+                .collect();
+            match output.len() {
+                0 => return Ok(None),
+                _ => return Ok(Some(output))
+            }
+        }
+        None => return Ok(None), // if we don't have numbers, then we wont have gear ratios
+    };
+}
+
+struct Gear<'a> {
+    index: usize,
+    number_1: Option<&'a Number>,
+    number_2: Option<&'a Number>,
+}
+
+fn build_valid_gear(index: usize, numbers: &Vec<Number>) -> Option<Gear> {
+    let mut gear = Gear {
+        index: index,
+        number_1: None,
+        number_2: None,
+    };
+    for number in numbers {
+        // check if nearby (we don't care about which row it comes from)
+        if number.start <= gear.index + 1 && gear.index <= number.stop {
+            match (gear.number_1.is_some(), gear.number_2.is_some()) {
+                (false, false) => gear.number_1 = Some(number),
+                (true, false) => {
+                    gear.number_2 = Some(number);
+                    return Some(gear);
+                }
+                _ => {}
+            }
+        }
+    }
+    return None;
+}
+
+fn merge_numbers(rows: [Option<Vec<Number>>; 3]) -> Option<Vec<Number>> {
+    let mut merged: Vec<Number> = Vec::new();
+
+    for row in rows.into_iter() {
+        match row {
+            Some(result) => merged.extend(result.into_iter()),
+            None => {}
+        }
+    }
+
+    match merged.len() {
+        0 => return None,
+        _ => return Some(merged),
+    }
 }
 
 fn get_chars(input: &str) -> Vec<char> {
@@ -206,7 +509,7 @@ impl ThreeRowGrid {
                 self.bottom_row = None;
                 return Ok(());
             }
-            _ => return Err(String::from("Invalid end case"))
+            _ => return Err(String::from("Invalid end case")),
         }
     }
 }
@@ -610,6 +913,20 @@ struct Number {
     value: usize,
 }
 
+impl PartialEq for Number {
+    fn eq(&self, other: &Self) -> bool {
+        if self.start != other.start {
+            return false;
+        } else if self.stop != other.stop {
+            return false;
+        } else if self.value != other.value {
+            return false;
+        } else {
+            return true;
+        }
+    }
+}
+
 fn get_all_numbers(row: &Vec<char>, bitmask: Vec<bool>) -> Result<Option<Vec<Number>>, String> {
     let mut output: Vec<Number> = Vec::new();
 
@@ -669,10 +986,9 @@ mod tests {
     use super::*;
 
     mod test_examples {
-        use crate::day_3::solve_part_1;
-
         #[test]
         fn test_example_1() {
+            use super::solve_part_1;
             use std::fs;
 
             let input = match fs::read_to_string("src/day_3/test_input_part_1.txt") {
@@ -686,6 +1002,24 @@ mod tests {
             };
 
             assert_eq!(result, 4361);
+        }
+
+        #[test]
+        fn test_example_2() {
+            use super::solve_part_2;
+            use std::fs;
+
+            let input = match fs::read_to_string("src/day_3/test_input_part_1.txt") {
+                Ok(result) => result,
+                Err(err) => panic!("Error in file reading: {err}"),
+            };
+
+            let result = match solve_part_2(&input) {
+                Ok(result) => result,
+                Err(err) => panic!("Error in solve_part_2: {err}"),
+            };
+
+            assert_eq!(result, 467835);
         }
     }
 
@@ -1061,6 +1395,93 @@ mod tests {
                 result.iter().map(|x| x.value as i32).collect::<Vec<_>>(),
                 vec![32, 623, 45]
             )
+        }
+    }
+    mod test_get_gear_ratios_from_all_rows {
+
+        #[test]
+        fn returns_correct_gear_ratio_from_example() {
+            use super::get_gear_ratios_from_all_rows;
+            use super::get_chars;
+
+            let row_1 = get_chars("467..114..");
+            let row_2 = get_chars("...*......");
+            let row_3 = get_chars("..35..633.");
+
+            let result = match get_gear_ratios_from_all_rows(&row_1, &row_2, &row_3) {
+                Ok(result) => result,
+                Err(err) => panic!("Error in get_gear_ratios_from_all_rows: {err}"),
+            };
+
+            assert!(result.is_some());
+            assert_eq!(result.unwrap(), vec![16_345 as usize]);
+        }
+
+        #[test]
+        fn returns_correct_gear_ratio_from_second_example() {
+            use super::get_gear_ratios_from_all_rows;
+            use super::get_chars;
+
+            let row_1 = get_chars("......755.");
+            let row_2 = get_chars("...$.*....");
+            let row_3 = get_chars(".664.598..");
+
+            let result = match get_gear_ratios_from_all_rows(&row_1, &row_2, &row_3) {
+                Ok(result) => result,
+                Err(err) => panic!("Error in get_gear_ratios_from_all_rows: {err}"),
+            };
+
+            assert!(result.is_some());
+            assert_eq!(result.unwrap(), vec![451_490 as usize]);
+        }
+    }
+    mod test_get_gear_ratios {
+        #[test]
+        fn test_each_line_of_the_example() {
+            use super::ThreeRowGrid;
+            use super:: get_gear_ratios;
+            use std::fs;
+
+            let input = match fs::read_to_string("src/day_3/test_input_part_1.txt") {
+                Ok(result) => result,
+                Err(err) => panic!("Error in file reading: {err}"),
+            };
+
+            let mut output: Vec<Vec<usize>> = Vec::new();
+            let mut grid = ThreeRowGrid::new(None, None, None);
+
+            for line in input.lines() {
+                match grid.insert_next_row(line) {
+                    Ok(_) => {}
+                    Err(err) => panic!("Error in ThreeGridRow.insert_new_row: {err}"),
+                };
+                output.push(match get_gear_ratios(&grid) {
+                    Ok(opt) => match opt {
+                        Some(vec) => vec,
+                        None => {
+                            let vec: Vec<usize> = Vec::new();
+                            vec
+                        },
+                    },
+                    Err(err) => panic!("Error in get_gear_ratios: {err}"),
+                })
+            }
+
+            match grid.handle_last_row() {
+                Ok(_) => {}
+                Err(err) => panic!("Error in ThreeGridRow.handle_last_row: {err}"),
+            };
+
+            output.push(match get_gear_ratios(&grid) {
+                Ok(result) => match result {
+                    Some(vec) => vec,
+                    None => {
+                        let vec: Vec<usize> = Vec::new();
+                        vec
+                    },
+                },
+                Err(err) => panic!("Error in get_machine_part_numbers: {err}"),
+            });
         }
     }
 }
