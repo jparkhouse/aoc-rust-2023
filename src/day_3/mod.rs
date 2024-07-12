@@ -1,7 +1,7 @@
 use std::fs;
-use crate::shared::get_chars;
+use crate::shared::{get_chars, DayResult};
 
-pub fn solve() -> Result<(usize, usize), String> {
+pub fn solve() -> Result<DayResult, String> {
     let input = match fs::read_to_string("src/day_3/input.txt") {
         Ok(result) => result,
         Err(err) => return Err(format!("Error in reading file: {}", err)),
@@ -16,7 +16,7 @@ pub fn solve() -> Result<(usize, usize), String> {
         Err(err) => return Err(format!("Error in solve_part_2: {err}")),
     };
 
-    return Ok((part_1, part_2));
+    return Ok(DayResult { part_1: part_1, part_2: part_2});
 }
 
 fn solve_part_1(input: &str) -> Result<usize, String> {

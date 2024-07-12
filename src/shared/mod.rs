@@ -31,3 +31,8 @@
 pub fn get_chars(input: &str) -> Vec<char> {
     input.chars().collect()
 }
+
+pub struct DayResult {
+    pub part_1: usize,
+    pub part_2: usize,
+}
