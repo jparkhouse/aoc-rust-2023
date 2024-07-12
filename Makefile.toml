@@ -1,0 +1,33 @@
+[tasks.build]
+description = "Build the project"
+command = "cargo"
+args = ["build"]
+
+[tasks.test]
+description = "Run tests"
+dependencies = ["build"]
+command = "cargo"
+args = ["test"]
+
+[tasks.coverage]
+description = "Generate test coverage report using tarpaulin (output to HTML)"
+dependencies = ["build", "test"]
+script = [
+    "cargo tarpaulin --out Html"
+    ]
+
+[tasks.docs]
+description = "Generate documentation"
+dependencies = ["build"]
+command = "cargo"
+args = ["doc", "--no-deps"]
+
+[tasks.run]
+description = "Run the project"
+dependencies = ["build"]
+command = "cargo"
+args = ["run"]
+
+[tasks.workflow]
+description = "Custom workflow: build, run tests, generate coverage report, generate docs, and run"
+dependencies = ["build", "test", "coverage", "docs", "run"]
