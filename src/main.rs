@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::io;
 
+mod shared;
 mod day_1;
 mod day_2;
 mod day_3;

@@ -1,6 +1,5 @@
 use std::fs;
-
-fn main() {}
+use crate::shared::get_chars;
 
 pub fn solve() -> Result<(usize, usize), String> {
     let input = match fs::read_to_string("src/day_3/input.txt") {
@@ -372,16 +371,6 @@ fn merge_numbers(rows: [Option<Vec<Number>>; 3]) -> Option<Vec<Number>> {
         0 => return None,
         _ => return Some(merged),
     }
-}
-
-fn get_chars(input: &str) -> Vec<char> {
-    return input
-        .as_bytes()
-        .iter()
-        .map(|item| {
-            return item.clone() as char;
-        })
-        .collect();
 }
 
 struct ThreeRowGrid {

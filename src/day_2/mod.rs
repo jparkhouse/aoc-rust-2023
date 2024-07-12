@@ -2,8 +2,6 @@ use std::{collections::HashMap, fs};
 extern crate regex;
 use regex::Regex;
 
-fn main() {}
-
 pub fn solve() -> Result<(usize, usize), String> {
     let input = match fs::read_to_string("src/day_2/input.txt") {
         Ok(result) => result,

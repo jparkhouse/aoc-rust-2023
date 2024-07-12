@@ -1,6 +1,6 @@
 use std::fs;
 
-fn main() {}
+use crate::shared::get_chars;
 
 pub fn solve() -> Result<(usize, usize), String> {
     let input = match fs::read_to_string("src/day_1/input.txt") {
@@ -122,16 +122,6 @@ fn solve_part_2(input: &str) -> Result<usize, String> {
         .collect();
     result = combined_ints.iter().sum();
     return Ok(result);
-}
-
-fn get_chars(input: &str) -> Vec<char> {
-    return input
-        .as_bytes()
-        .iter()
-        .map(|item| {
-            return item.clone() as char;
-        })
-        .collect();
 }
 
 fn find_all_ints_part_2(input: &str) -> Result<Vec<usize>, String> {
