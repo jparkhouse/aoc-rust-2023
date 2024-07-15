@@ -114,7 +114,7 @@ fn get_card_wins(card: &CardInfo) -> usize {
 
 
 mod tests {
-    use super::*;
+    use super::{solve_part_1, parse_card, calculate_part_1_card_score};
 
     mod test_examples {
         #[test]

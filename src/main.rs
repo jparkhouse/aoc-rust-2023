@@ -6,6 +6,7 @@ mod day_1;
 mod day_2;
 mod day_3;
 mod day_4;
+mod day_5;
 
 fn main() -> Result<(), String> {
     println!("Enter day number: ");
@@ -49,6 +50,13 @@ fn run_day_solution(day: usize) {
             Err(err) => eprintln!("Error in day {} solution: {}", day, err),
         },
         4 => match day_4::solve() {
+            Ok(result) => println!(
+                "Day {} solution:\nPart 1: {}\nPart 2: {}",
+                day, result.part_1, result.part_2
+            ),
+            Err(err) => eprintln!("Error in day {} solution: {}", day, err),
+        },
+        5 => match day_5::solve() {
             Ok(result) => println!(
                 "Day {} solution:\nPart 1: {}\nPart 2: {}",
                 day, result.part_1, result.part_2

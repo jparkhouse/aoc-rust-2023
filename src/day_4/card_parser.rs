@@ -60,10 +60,11 @@ pub fn parse_card(input: &str) -> Result<CardInfo, CardParseError> {
 }
 
 mod tests {
-    use super::*;
 
     #[test]
     fn test_parse_card() {
+        use super::parse_card;
+
         let input = "Card   1: 41 48 83 86 17 | 83 86  6 31 17  9 48 53";
         let result = parse_card(input);
         assert!(result.is_ok());
