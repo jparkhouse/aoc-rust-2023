@@ -29,12 +29,16 @@ impl MapTo {
     }
 
     pub fn add_range_map(&mut self, start_input: usize, start_output: usize, steps: usize) {
+        // Reserve capacity to prevent multiple allocations
+        self.map.reserve(steps);
+
         let ranges = zip(
             start_input..start_input + steps,
             start_output..start_output + steps,
         );
-        for (input, output) in ranges{
-            self.add_map(input, output)
+
+        for (input, output) in ranges {
+            self.map.insert(input, output);
         }
     }
 }

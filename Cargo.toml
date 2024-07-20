@@ -8,3 +8,8 @@ edition = "2021"
 [dependencies]
 regex = "1.5"
 thiserror = "1.0"
+firestorm = { version = "0.4", features = ["enable_system_time"] }
+
+
+[profile.release]
+debug = true  # Can be set to 1 or 2 for more detailed symbols

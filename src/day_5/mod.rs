@@ -3,9 +3,8 @@ pub mod map_to;
 use map_to::MapTo;
 use regex::Regex;
 use thiserror::Error;
-
 use crate::shared::DayResult;
-use std::{error, fs, num::ParseIntError};
+use std::{fs, num::ParseIntError};
 
 pub fn solve() -> Result<DayResult, String> {
     let input = match fs::read_to_string("src/day_5/input.txt") {
@@ -25,7 +24,7 @@ fn solve_part_1(input: &str) -> Result<usize, String> {
     let seed_locations: Vec<usize> = input
         .seeds
         .into_iter()
-        .map(|seed| seed_to_location(seed, input.maps.as_ref()))
+        .map(|seed| seed_to_location(seed, input.maps.as_ref()).map_err(|e| format!("Error in seed_to_location: {e}")).unwrap())
         .collect();
     match seed_locations.into_iter().min() {
         Some(result) => Ok(result),
@@ -163,8 +162,8 @@ fn parse_maps(map_blocks: Vec<&str>) -> Result<Vec<MapTo>, MapParseError> {
         let rows = rows?;
 
         let mut map_to = MapTo::new(input, output);
-        for (start_input, start_output, steps) in rows {
-            map_to.add_range_map(start_input, start_output, steps);
+        for (start_destination, start_source, steps) in rows {
+            map_to.add_range_map(start_source, start_destination, steps);
         }
         maps.push(map_to);
     }
@@ -172,11 +171,18 @@ fn parse_maps(map_blocks: Vec<&str>) -> Result<Vec<MapTo>, MapParseError> {
     Ok(maps)
 }
 
-fn seed_to_location(seed: usize, maps: &Vec<MapTo>) -> usize {
+fn seed_to_location(seed: usize, maps: &Vec<MapTo>) -> Result<usize, String> {
+    let mut seed_progress: Vec<usize> = Vec::new();
     for map in maps {
-        let seed = map.get(seed);
+        seed_progress.push(map.get(match seed_progress.last() {
+            Some(result) => *result,
+            None => seed,
+        }));
     }
-    return seed;
+    return match seed_progress.last() {
+        Some(result) => Ok(*result),
+        None => Err("No mapping performed".to_string()),
+    };
 }
 fn solve_part_2(input: &str) -> Result<usize, String> {
     return Ok(0);
@@ -190,17 +196,18 @@ mod tests {
         fn test_example_1() {
             use super::solve_part_1;
             use std::fs;
+            use firestorm;
 
             let input = match fs::read_to_string("src/day_5/test_input_part_1.txt") {
                 Ok(result) => result,
                 Err(err) => panic!("Error in file reading: {err}"),
             };
-
+            firestorm::profile_section!(res);
             let result = match solve_part_1(&input) {
                 Ok(result) => result,
                 Err(err) => panic!("Error in solve_part_1: {err}"),
             };
-
+            drop(res);
             assert_eq!(result, 35);
         }
     }
@@ -221,10 +228,53 @@ mod tests {
 
             assert_eq!(result.seeds, vec![79, 14, 55, 13]);
             assert_eq!(result.maps.len(), 7);
+
             assert_eq!(result.maps[0].input, "seed");
             assert_eq!(result.maps[0].get(50), 98);
             assert_eq!(result.maps[0].get(51), 99);
             assert_eq!(result.maps[0].get(52), 50);
+
+            assert_eq!(result.maps[1].input, "soil");
+            assert_eq!(result.maps[1].get(50), 11);
+            assert_eq!(result.maps[1].get(51), 12);
+            assert_eq!(result.maps[1].get(52), 13);
+
+            assert_eq!(result.maps[2].input, "fertilizer");
+            assert_eq!(result.maps[2].get(50), 54);
+            assert_eq!(result.maps[2].get(51), 55);
+            assert_eq!(result.maps[2].get(52), 56);
+
+            assert_eq!(result.maps[3].input, "water");
+            assert_eq!(result.maps[3].get(50), 57);
+            assert_eq!(result.maps[3].get(51), 58);
+            assert_eq!(result.maps[3].get(52), 59);
+
+            assert_eq!(result.maps[4].input, "light");
+            assert_eq!(result.maps[4].get(50), 82);
+            assert_eq!(result.maps[4].get(51), 83);
+            assert_eq!(result.maps[4].get(52), 84);
+
+            assert_eq!(result.maps[5].input, "temperature");
+            assert_eq!(result.maps[5].get(50), 49);
+            assert_eq!(result.maps[5].get(51), 50);
+            assert_eq!(result.maps[5].get(52), 51);
+
+            assert_eq!(result.maps[6].input, "humidity");
+            assert_eq!(result.maps[6].get(50), 50);
+            assert_eq!(result.maps[6].get(51), 51);
+            assert_eq!(result.maps[6].get(52), 52);
+        }
+        #[test]
+        fn parse_input_file() {
+            let input = match fs::read_to_string("src/day_5/input.txt") {
+                Ok(result) => result,
+                Err(err) => panic!("Error in file reading: {err}"),
+            };
+
+            let result = match parse_input(&input) {
+                Ok(result) => result,
+                Err(e) => panic!("Error in parse input: {e}"),
+            };
         }
     }
 }
