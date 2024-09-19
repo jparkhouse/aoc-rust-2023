@@ -1,0 +1,312 @@
+pub mod map_to;
+
+use crate::shared::DayResult;
+use map_to::MapTo;
+use regex::Regex;
+use std::{fs, num::ParseIntError};
+use thiserror::Error;
+
+pub fn solve() -> Result<DayResult, String> {
+    let input = match fs::read_to_string("src/day_5/input.txt") {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in reading file: {}", err)),
+    };
+    let output = DayResult {
+        part_1: solve_part_1(&input)?,
+        part_2: solve_part_2(&input)?,
+    };
+
+    return Ok(output);
+}
+
+fn solve_part_1(input: &str) -> Result<usize, String> {
+    let input = parse_input(input).map_err(|e| e.to_string())?;
+    let seed_locations: Vec<usize> = input
+        .seeds
+        .into_iter()
+        .map(|seed| {
+            let loc = seed_to_location(seed, input.maps.as_ref())
+                .map_err(|e| format!("Error in seed_to_location: {e}"))
+                .unwrap();
+            println!("seed {0} goes to location {1}", seed, loc);
+            return loc
+        })
+        .collect();
+    match seed_locations.into_iter().min() {
+        Some(result) => Ok(result),
+        None => Err("No seeds found".to_string()),
+    }
+}
+
+struct SeedsAndMaps {
+    seeds: Vec<usize>,
+    maps: Vec<MapTo>,
+}
+
+#[derive(Debug, Error)]
+enum ParseInputError {
+    #[error("This should never happen")]
+    NoInputProvided,
+
+    #[error("There was no double new lines found, invalid format")]
+    NoSplitsThereforeInvalidFormat,
+
+    #[error("Error parsing seeds: {0}")]
+    SeedParseError(#[from] SeedParseError),
+
+    #[error("Error parsing maps: {0}")]
+    MapParseError(#[from] MapParseError),
+}
+
+fn parse_input(input: &str) -> Result<SeedsAndMaps, ParseInputError> {
+    if input.trim().is_empty() {
+        return Err(ParseInputError::NoInputProvided);
+    }
+
+    let rows: Vec<&str> = input.split("\n\n").collect();
+
+    if rows.len() < 2 {
+        return Err(ParseInputError::NoSplitsThereforeInvalidFormat);
+    }
+
+    let mut rows_iter = rows.into_iter();
+    let output_seeds = parse_seeds(rows_iter.next().unwrap())?;
+    let output_maps = parse_maps(rows_iter.collect::<Vec<&str>>())?;
+
+    println!("Successfully parsed input file!");
+
+    return Ok(SeedsAndMaps {
+        seeds: output_seeds,
+        maps: output_maps,
+    });
+}
+
+#[derive(Debug, Error)]
+enum SeedParseError {
+    #[error("Regex error: {0}")]
+    RegexError(String),
+
+    #[error("Failed to parse seed number: {0}")]
+    InvalidNumber(#[from] ParseIntError),
+
+    #[error("The 'seeds' keyword is missing or malformed")]
+    MissingKeyword,
+}
+
+fn parse_seeds(seeds: &str) -> Result<Vec<usize>, SeedParseError> {
+    let pattern = match Regex::new(r"seeds:\s*((\d+\s*)+)") {
+        Ok(result) => result,
+        Err(e) => return Err(SeedParseError::RegexError(e.to_string())),
+    };
+
+    println!("Beginning to parse seeds...");
+
+    let captures = pattern
+        .captures(seeds)
+        .ok_or(SeedParseError::MissingKeyword)?;
+    let seeds_str = captures
+        .get(1)
+        .ok_or(SeedParseError::MissingKeyword)?
+        .as_str();
+    let output: Result<Vec<usize>, ParseIntError> = seeds_str
+        .split_whitespace()
+        .map(|s| s.parse::<usize>())
+        .collect();
+    match output {
+        Ok(result) => Ok(result),
+        Err(e) => Err(SeedParseError::InvalidNumber(e)),
+    }
+}
+
+#[derive(Debug, Error)]
+enum MapParseError {
+    #[error("Regex error: {0}")]
+    RegexError(String),
+
+    #[error("Failed to parse mapping number: {0}")]
+    InvalidNumber(#[from] ParseIntError),
+
+    #[error("Invalid row format")]
+    InvalidRowFormat,
+
+    #[error("Missing map block or invalid format")]
+    MissingBlock,
+
+    #[error("Missing map input string or invalid format")]
+    MissingInputString,
+
+    #[error("Missing map output string or invalid format")]
+    MissingOutputString,
+
+    #[error("Missing mappping row(s) or invalid format")]
+    MissingMappingRows,
+}
+
+fn parse_maps(map_blocks: Vec<&str>) -> Result<Vec<MapTo>, MapParseError> {
+    let block_pattern = Regex::new(r"(\w+)-to-(\w+) map:\n((?:\d+\s+\d+\s+\d+\n?)*)")
+        .map_err(|e| MapParseError::RegexError(e.to_string()))?;
+
+    println!("Beginning to parse maps...");
+    let mut maps = Vec::new();
+
+    let total_blocks = map_blocks.len();
+    for (i, block) in map_blocks.iter().enumerate() {
+        let captures = block_pattern
+            .captures(block)
+            .ok_or(MapParseError::MissingBlock)?;
+
+        let input = captures
+            .get(1)
+            .ok_or(MapParseError::MissingInputString)?
+            .as_str();
+        let output = captures
+            .get(2)
+            .ok_or(MapParseError::MissingOutputString)?
+            .as_str();
+        let rows_str = captures
+            .get(3)
+            .ok_or(MapParseError::MissingMappingRows)?
+            .as_str();
+
+        let rows: Result<Vec<(usize, usize, usize)>, MapParseError> = rows_str
+            .lines()
+            .map(|line| {
+                let nums: Vec<&str> = line.split_whitespace().collect();
+                if nums.len() != 3 {
+                    return Err(MapParseError::InvalidRowFormat);
+                }
+                let start_input = nums[0]
+                    .parse::<usize>()
+                    .map_err(|e| MapParseError::InvalidNumber(e))?;
+                let start_output = nums[1]
+                    .parse::<usize>()
+                    .map_err(|e| MapParseError::InvalidNumber(e))?;
+                let steps = nums[2]
+                    .parse::<usize>()
+                    .map_err(|e| MapParseError::InvalidNumber(e))?;
+                Ok((start_input, start_output, steps))
+            })
+            .collect();
+
+        let rows = rows?;
+
+        let mut map_to = MapTo::new(input, output);
+        for (start_destination, start_source, steps) in rows {
+            map_to.add_range_map(start_source, start_destination, steps);
+        }
+        maps.push(map_to);
+
+        print!("\rProcessing {}/{} blocks", i + 1, total_blocks);
+    }
+    println!("\rMap processing complete!");
+    Ok(maps)
+}
+
+fn seed_to_location(seed: usize, maps: &Vec<MapTo>) -> Result<usize, String> {
+    let mut seed_progress: Vec<usize> = Vec::new();
+    for map in maps {
+        seed_progress.push(map.get(match seed_progress.last() {
+            Some(result) => *result,
+            None => seed,
+        }));
+    }
+    return match seed_progress.last() {
+        Some(result) => Ok(*result),
+        None => Err("No mapping performed".to_string()),
+    };
+}
+
+fn solve_part_2(input: &str) -> Result<usize, String> {
+    return Ok(0);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::solve_part_1;
+    mod test_examples {
+        #[test]
+        fn test_example_1() {
+            use super::solve_part_1;
+            use firestorm;
+            use std::fs;
+
+            let input = match fs::read_to_string("src/day_5/test_input_part_1.txt") {
+                Ok(result) => result,
+                Err(err) => panic!("Error in file reading: {err}"),
+            };
+            firestorm::profile_section!(res);
+            let result = match solve_part_1(&input) {
+                Ok(result) => result,
+                Err(err) => panic!("Error in solve_part_1: {err}"),
+            };
+            drop(res);
+            assert_eq!(result, 35);
+        }
+    }
+    mod test_parse_input {
+        use crate::day_5::parse_input;
+        use std::fs;
+        #[test]
+        fn parse_example_1() {
+            let input = match fs::read_to_string("src/day_5/test_input_part_1.txt") {
+                Ok(result) => result,
+                Err(err) => panic!("Error in file reading: {err}"),
+            };
+
+            let result = match parse_input(&input) {
+                Ok(result) => result,
+                Err(e) => panic!("Error in parse input: {e}"),
+            };
+
+            assert_eq!(result.seeds, vec![79, 14, 55, 13]);
+            assert_eq!(result.maps.len(), 7);
+
+            assert_eq!(result.maps[0].input, "seed");
+            assert_eq!(result.maps[0].get(50), 98);
+            assert_eq!(result.maps[0].get(51), 99);
+            assert_eq!(result.maps[0].get(52), 50);
+
+            assert_eq!(result.maps[1].input, "soil");
+            assert_eq!(result.maps[1].get(50), 11);
+            assert_eq!(result.maps[1].get(51), 12);
+            assert_eq!(result.maps[1].get(52), 13);
+
+            assert_eq!(result.maps[2].input, "fertilizer");
+            assert_eq!(result.maps[2].get(50), 54);
+            assert_eq!(result.maps[2].get(51), 55);
+            assert_eq!(result.maps[2].get(52), 56);
+
+            assert_eq!(result.maps[3].input, "water");
+            assert_eq!(result.maps[3].get(50), 57);
+            assert_eq!(result.maps[3].get(51), 58);
+            assert_eq!(result.maps[3].get(52), 59);
+
+            assert_eq!(result.maps[4].input, "light");
+            assert_eq!(result.maps[4].get(50), 82);
+            assert_eq!(result.maps[4].get(51), 83);
+            assert_eq!(result.maps[4].get(52), 84);
+
+            assert_eq!(result.maps[5].input, "temperature");
+            assert_eq!(result.maps[5].get(50), 49);
+            assert_eq!(result.maps[5].get(51), 50);
+            assert_eq!(result.maps[5].get(52), 51);
+
+            assert_eq!(result.maps[6].input, "humidity");
+            assert_eq!(result.maps[6].get(50), 50);
+            assert_eq!(result.maps[6].get(51), 51);
+            assert_eq!(result.maps[6].get(52), 52);
+        }
+        #[test]
+        fn parse_input_file() {
+            let input = match fs::read_to_string("src/day_5/input.txt") {
+                Ok(result) => result,
+                Err(err) => panic!("Error in file reading: {err}"),
+            };
+
+            let result = match parse_input(&input) {
+                Ok(result) => result,
+                Err(e) => panic!("Error in parse input: {e}"),
+            };
+        }
+    }
+}

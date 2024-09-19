@@ -1,0 +1,95 @@
+// first one
+    let mut seed_value: usize = 0;
+    let mut seed_set_index: usize = 0;
+    let mut map_tuple_index: usize = 0;
+
+    let first_map_tuple_vec = match map_iter.next() {
+        Some(map) => map,
+        None => return Err("No maps parsed successfully".to_string()),
+    }
+    .get_sorted_vec();
+
+    let seed_max = match parsed_input.seed_sets.last() {
+        Some(seed_set) => seed_set.start + seed_set.steps,
+        None => return Err("No SeedSets parsed successfully".to_string()),
+    };
+
+    let mut initial_map: Vec<MapTuple> = Vec::new();
+
+    let mut first_run = true;
+    while first_run {
+        match (
+            seed_value < seed_max,                         // are there more seeds to go
+            seed_set_index < parsed_input.seed_sets.len(), // are there more seed sets to go
+            map_tuple_index < first_map_tuple_vec.len(),   // are there more maps to go
+        ) {
+            (true, true, true) => {
+                // the core loop
+                let current_seed_set = &parsed_input.seed_sets[seed_set_index];
+                let current_map_tuple = &first_map_tuple_vec[map_tuple_index];
+                let next_critical_point =
+                    get_critical_point(seed_value, current_seed_set, current_map_tuple);
+                match next_critical_point.critical_type {
+                    CriticalPointEnum::StartOfSeedSet => {
+                        seed_value = next_critical_point.seed_value.unwrap()
+                    }
+                    CriticalPointEnum::StartOfMapTuple => {
+                        let next_critical_value = next_critical_point.seed_value.unwrap();
+                        initial_map.push(MapTuple::new( // insert an self-mapping MapTuple
+                            seed_value,
+                            seed_value,
+                            next_critical_value - seed_value,
+                        ));
+                        seed_value = next_critical_value;
+                    }
+                    CriticalPointEnum::EndOfMapTuple => {
+                        let next_critical_value = next_critical_point.seed_value.unwrap();
+                        initial_map.push(MapTuple::new(
+                            current_map_tuple.destination_range_start,
+                            seed_value,
+                            next_critical_value - seed_value,
+                        ));
+                        seed_value = next_critical_value;
+                        map_tuple_index += 1; // move on to the next since we are at the end of this one
+                    },
+                    CriticalPointEnum::EndOfSeedSet => {
+                        let next_critical_value = next_critical_point.seed_value.unwrap();
+                        initial_map.push(MapTuple::new(
+                            current_map_tuple.destination_range_start,
+                            seed_value,
+                            next_critical_value - seed_value,
+                        ));
+                        seed_value = next_critical_value;
+                        seed_set_index += 1; // move on to the next, since we are at the end of this one
+                    },
+                    CriticalPointEnum::StartOfNextSeedSet => {
+                        // we have somehow overshot the seed set
+                        println!("Overshot the SeedSet!");
+                        seed_set_index += 1;
+                    },
+                }
+            }
+            (false, _, _) => {
+                // no more seeds
+                first_run = false;
+            },
+            (_, false, true) => {
+                // no more SeedSets, we can safely ignore the rest of the map tuples
+                first_run = false;
+            },
+            (true, true, false) => {
+                // no more MapTuples
+                let current_seed_set = &parsed_input.seed_sets[seed_set_index];
+                initial_map.push(MapTuple::new(
+                    current_seed_set.start,
+                    current_seed_set.start,
+                    current_seed_set.steps,
+                ));
+                seed_set_index += 1;
+            },
+            (true, false, false) => {
+                // this implies there are more seeds but no more seed sets and no more MapTuples
+                return Err("Unexpected state: more seeds but no seed sets or map tuples".to_string());
+            },
+        }
+    }

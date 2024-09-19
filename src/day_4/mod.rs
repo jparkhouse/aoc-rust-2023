@@ -114,12 +114,11 @@ fn get_card_wins(card: &CardInfo) -> usize {
 
 
 mod tests {
-    use super::{solve_part_1, parse_card, calculate_part_1_card_score};
-
+    use super::*;
     mod test_examples {
+        use super::*;
         #[test]
         fn test_example_1() {
-            use super::solve_part_1;
             use std::fs;
 
             let input = match fs::read_to_string("src/day_4/test_input_part_1.txt") {

@@ -1,5 +1,5 @@
 use std::fs;
-use crate::shared;
+use crate::shared::{DayResult};
 
 pub fn solve() -> Result<DayResult, String> {
     let input = match fs::read_to_string("src/day_X/input.txt") {
