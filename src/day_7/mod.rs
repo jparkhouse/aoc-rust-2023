@@ -1,0 +1,23 @@
+use std::fs;
+use crate::shared::{DayResult};
+
+pub fn solve() -> Result<DayResult, String> {
+    let input = match fs::read_to_string("src/day_X/input.txt") {
+        Ok(result) => result,
+        Err(err) => return Err(format!("Error in reading file: {}", err)),
+    };
+    let output = DayResult {
+        part_1: solve_part_1(&input)?,
+        part_2: solve_part_2(&input)?,
+    };    
+
+    return Ok(output);
+}
+
+fn solve_part_1(input: &str) -> Result<usize, String> {
+    return Ok(0);
+}
+
+fn solve_part_2(input: &str) -> Result<usize, String> {
+    return Ok(0);
+}
